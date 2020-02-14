@@ -252,6 +252,7 @@ type indexingMeta struct {
 	RetryOnConflict int
 	Skip            bool
 	ID              string
+	Drop            bool
 }
 
 type gtmSettings struct {
@@ -2810,6 +2811,21 @@ func (ic *indexClient) doIndexing(op *gtm.Op) (err error) {
 			}
 		}
 	}
+
+	if meta.Drop {
+		req := elastic.NewBulkDeleteRequest()
+		req.Id(objectID)
+		if meta.ID != "" {
+			req.Id(meta.ID)
+		}
+
+		if _, err = req.Source(); err == nil {
+			ic.bulk.Add(req)
+		}
+
+		return
+	}
+
 	ingestAttachment := false
 	if ic.hasFileContent(op) {
 		ingestAttachment = op.Data["file"] != nil
@@ -3162,6 +3178,9 @@ func (meta *indexingMeta) load(metaAttrs map[string]interface{}) {
 	var s string
 	if _, ok = metaAttrs["skip"]; ok {
 		meta.Skip = true
+	}
+	if _, ok = metaAttrs["drop"]; ok {
+		meta.Drop = true
 	}
 	if v, ok = metaAttrs["routing"]; ok {
 		meta.Routing = fmt.Sprintf("%v", v)
